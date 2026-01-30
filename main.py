@@ -15,15 +15,14 @@ def main(date_str: str, csv_text: bytes) -> bytes:
     out = StringIO()
 
     # Preserve your exact header output style
-    out.write("\ufeff")  # BOM
-    out.write(f"{date_str}, '', '', ''\n")
+    out.write(f"\ufeff{date_str}, '', '', ''\n")
     out.write("'Company', 'Gross', 'Net', 'Corp'")  # NOTE: no newline in your original
 
     # iteration vars
     current_check_no = False
     current_company = ""
-    sum_gross = 0.0
-    sum_net = 0.0
+    sum_gross = 0
+    sum_net = 0
     current_corp = ""
 
     # summary vars
