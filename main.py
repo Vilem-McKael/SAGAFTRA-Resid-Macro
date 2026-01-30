@@ -1,113 +1,132 @@
+import streamlit as st
 import csv
-
-def main(date, residual_data_filepath, new_filename):
-
-    with open(residual_data_filepath, 'r') as f:
-        count_reader = csv.reader(f)
-        count = sum(1 for row in count_reader)
-        f.seek(0)
-        reader = csv.reader(f)
-
-        new_file = open(f'results/{new_filename}.csv', 'w')
-        new_file.write(f"\ufeff{date}, '', '', ''\n")
-        new_file.write("'Company', 'Gross', 'Net', 'Corp'")
-
-        # iteration vars
-        current_check_no = False
-        current_company = ""
-        sum_gross = 0
-        sum_net = 0
-        current_corp = ""
-
-        # summary vars
-        is_finished = False
-        net_totals = {}
-
-        # processing
-        for row in reader:
-            print(reader.line_num)
-
-            if reader.line_num == 1:
-                print('here')
-                continue
-
-            if reader.line_num == count:
-                is_finished = True
-
-            print(row[0])
-            check_no = row[0]
-
-            if check_no == current_check_no:
-                print('adding sums')
-                sum_gross += float(row[10].replace('$', ''))
-                sum_net += float(row[11].replace('$', ''))
-            else:
-                print('new check')
-                if current_check_no:
-                    new_file.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                    net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
-
-                current_check_no = check_no
-                current_corp = row[1]
-                current_company = row[3]
-                print('gross: ', row[10], 'net: ', row[11])
-                sum_gross = float(row[10].replace('$', ''))
-                sum_net = float(row[11].replace('$', ''))
-
-                if is_finished:
-                    new_file.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                    net_totals[current_corp] = net_totals.get(current_corp, 0) + float(sum_net)
-
-            if is_finished:
-                for k, v in net_totals.items():
-                    new_file.write(f"'', '', {v}, {k}\n")
-
-                # if i == count:
-                #     new_file.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                #     net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
-                #
-                #     new_file.write
-
-            print(row)
+from io import StringIO
+from typing import Dict, List, Optional
 
 
+def money_to_float(x: str) -> float:
+    """Convert things like '$1,234.56' or '($12.00)' to float."""
+    if x is None:
+        return 0.0
+    s = str(x).strip()
+    if not s:
+        return 0.0
 
-main('Jul 10 2025', 'data/residuals.csv', 'result1.csv')
-# Current CSV Format:
-# ['SAG-AFTRA ID', 'Payee Name', 'Payee Type', 'Company', 'Payroll House', 'Production/Episode Title', 'Check Status', 'Check Status Date', 'Check #', 'Check Date', 'Gross Amount', 'Net Amount', 'Received Date', 'Donated', 'Prod Title Gross Amt']
-# ['10043657', 'E M L PRODS', 'ORGANIZATION', 'Nickelodeon', 'GEP Talent Services, LLC - SDDD (1494)', 'Rugrats / Rugrats Chanukah, A', 'Queued for Post', '7/1/25', '60565650', '6/16/25', '$17.13', '$17.13', '6/17/25', 'No', '$0.35']
-# ['10043657', 'E M L PRODS', 'ORGANIZATION', 'Nickelodeon', 'GEP Talent Services, LLC - SDDD (1494)', 'Rugrats / Rugrats Chanukah, A', 'Queued for Post', '7/1/25', '60565650', '6/16/25', '$17.13', '$17.13', '6/17/25', 'No', '$14.47']
-# ['10043657', 'E M L PRODS', 'ORGANIZATION', 'Nickelodeon', 'GEP Talent Services, LLC - SDDD (1494)', 'Rugrats / Rugrats Chanukah, A', 'Queued for Post', '7/1/25', '60565650', '6/16/25', '$17.13', '$17.13', '6/17/25', 'No', '$1.19']
+    negative = False
+    if s.startswith("(") and s.endswith(")"):
+        negative = True
+        s = s[1:-1]
 
-# NEEDED:
-# Col 0: Check # - GROUP BY
-# Col 1: Payee Org
-# Col 3: Company
-# Col 10: Gross
-# Col 11: Net
+    s = s.replace("$", "").replace(",", "").strip()
+    try:
+        val = float(s)
+    except ValueError:
+        val = 0.0
 
-# Desired CSV Format:
-# ['\ufeff"Tuesday July 1', ' 2025"', '', '', '']
-# ['Company', 'Gross', 'Net', 'Corp']
-# ['Nickelodeon', '$17.13 ', '$17.13 ', 'EML']
-# ['Paramount Pictures Corporation', '$351.44 ', '$351.44 ', 'EML']
-# ['Paramount Pictures Corporation', '$55.37 ', '$55.37 ', 'LBI']
-# ['Paramount Pictures Corporation', '$94.62 ', '$94.62 ', 'LBI']
-# ['Paramount Pictures Corporation', '$13.91 ', '$13.91 ', 'EML']
-# ['Warner Bros. Pictures Inc.', '$63.20 ', '$63.20 ', 'EML']
-# ['Warner Bros. Pictures Inc.', '$1,263.12 ', '$1,263.12 ', 'LBI']
-# ['Metro-Goldwyn-Mayer Pictures Inc.', '$13.05 ', '$13.05 ', 'EML']
-# ['Universal City Studios LLC', '$6,223.55 ', '$6,223.55 ', 'LBI']
-# ['Universal City Studios LLC', '$41.58 ', '$41.58 ', 'EML']
-# ['Universal City Studios LLC', '$3,254.83 ', '$3,254.83 ', 'EML']
-# ['Walt Disney Pictures', '$993.98 ', '$993.98 ', 'EML']
-# ['Walt Disney Pictures', '$25.09 ', '$15.69 ', 'LehBod']
-# ['Walt Disney Pictures', '$3,464.00 ', '$3,464.00 ', 'LBI']
-# ['Warner Bros. Pictures Inc.', '$222.05 ', '$222.05 ', 'EML']
-# ['Warner Bros. Pictures Inc.', '$275.06 ', '$275.06 ', 'LBI']
-# ['Warner Bros. Pictures Inc.', '$18.82 ', '$15.93 ', 'LehBod']
-# ['Warner Bros. Pictures Inc.', '$279.51 ', '$279.51 ', 'EML']
-# ['Warner Bros. Pictures Inc.', '$98.74 ', '$98.74 ', 'LBI']
-# ['', '', '$5,250.68 ', 'EML']
-# ['', '', '$11,474.46 ', 'LBI']
-# ['', '', '$31.62 ', 'LehBod']
+    return -val if negative else val
+
+
+def transform_csv(date_str: str, input_csv_text: str) -> bytes:
+    """
+    Takes input CSV text, returns output CSV bytes (utf-8 with BOM) for download.
+    """
+    # Read input rows
+    reader = csv.reader(StringIO(input_csv_text))
+    rows = list(reader)
+
+    if not rows:
+        # Empty file
+        out = "\ufeff" + f"{date_str},,,\n" + "Company,Gross,Net,Corp\n"
+        return out.encode("utf-8")
+
+    # Skip header row (your original code skipped line 1)
+    data_rows = rows[1:] if len(rows) > 1 else []
+
+    # Prepare output in memory
+    out_buf = StringIO()
+    out_buf.write("\ufeff")  # Excel-friendly BOM
+    writer = csv.writer(out_buf, lineterminator="\n")
+
+    writer.writerow([date_str, "", "", ""])
+    writer.writerow(["Company", "Gross", "Net", "Corp"])
+
+    current_check_no: Optional[str] = None
+    current_company = ""
+    current_corp = ""
+    sum_gross = 0.0
+    sum_net = 0.0
+
+    net_totals: Dict[str, float] = {}
+
+    def flush_group():
+        nonlocal sum_gross, sum_net, current_company, current_corp
+        if current_check_no is None:
+            return
+        writer.writerow([current_company, f"{sum_gross:.2f}", f"{sum_net:.2f}", current_corp])
+        net_totals[current_corp] = net_totals.get(current_corp, 0.0) + sum_net
+
+    for row in data_rows:
+        if not row:
+            continue
+
+        # Defensive: make sure indexes exist
+        # You use row[0], row[1], row[3], row[10], row[11]
+        if len(row) <= 11:
+            continue
+
+        check_no = row[0].strip()
+
+        gross = money_to_float(row[10])
+        net = money_to_float(row[11])
+
+        if current_check_no is None:
+            # first group
+            current_check_no = check_no
+            current_corp = row[1].strip()
+            current_company = row[3].strip()
+            sum_gross = gross
+            sum_net = net
+            continue
+
+        if check_no == current_check_no:
+            sum_gross += gross
+            sum_net += net
+        else:
+            # new check_no => write previous group, start new group
+            flush_group()
+            current_check_no = check_no
+            current_corp = row[1].strip()
+            current_company = row[3].strip()
+            sum_gross = gross
+            sum_net = net
+
+    # Flush last group
+    flush_group()
+
+    # Summary rows (your original wrote: '', '', {v}, {k}
+    for corp, total_net in net_totals.items():
+        writer.writerow(["", "", f"{total_net:.2f}", corp])
+
+    return out_buf.getvalue().encode("utf-8")
+
+
+# ---------------- Streamlit UI ----------------
+
+st.title("CSV Macro")
+
+date_str = st.text_input("Date", "Jul 10 2025")
+uploaded = st.file_uploader("Upload residuals CSV", type=["csv"])
+
+if uploaded is not None:
+    # Read bytes -> text
+    input_text = uploaded.getvalue().decode("utf-8-sig", errors="replace")
+
+    if st.button("Run"):
+        output_bytes = transform_csv(date_str, input_text)
+
+        st.download_button(
+            label="Download result CSV",
+            data=output_bytes,
+            file_name="result.csv",
+            mime="text/csv",
+        )
