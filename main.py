@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 def main(date_str: str, csv_text: bytes) -> bytes:
-    f = StringIO(uploaded_bytes.decode("utf-8-sig"), newline="")
+    f = StringIO(csv_text.decode("utf-8-sig"), newline="")
 
     count_reader = csv.reader(f)
     count = sum(1 for row in count_reader)
@@ -76,7 +76,7 @@ def main(date_str: str, csv_text: bytes) -> bytes:
             #     new_file.write
 
         print(row)
-        
+
     return out.getvalue().encode("utf-8")
 
 # ---------------- Streamlit UI ----------------
