@@ -1,21 +1,15 @@
 import streamlit as st
 import csv
 from io import StringIO
+from datetime import datetime
 
 
-def main(date_str: str, csv_text: str) -> bytes:
-    # This preserves your original behavior:
-    # - count = number of rows in the CSV
-    # - loop with "line_num" starting at 1
-    # - skip first row (header) when line_num == 1
-    # - set is_finished when line_num == count (i.e., on last row)
-    # - same logic for when to write group rows and summary rows
-    #
-    # Only difference: we write to an in-memory buffer instead of a file on disk.
+def main(date_str: str, csv_text: bytes) -> bytes:
+    f = StringIO(uploaded_bytes.decode("utf-8-sig"), newline="")
 
-    # Parse all rows once so we can get count exactly like your code intended
-    reader_for_count = csv.reader(StringIO(csv_text))
+    reader_for_count = csv.reader(csv_text)
     rows = list(reader_for_count)
+    f.seek(0)
     count = len(rows)
 
     # Now iterate like your second pass
@@ -84,18 +78,18 @@ def main(date_str: str, csv_text: str) -> bytes:
 
 st.title("SAG-AFTRA Residual Macro")
 
-date_str = st.text_input("Date (first line)", "Jul 10 2025")
+date_string = st.text_input("Date (first line)", datetime.today().strftime('%Y-%m-%d'))
 uploaded = st.file_uploader("Upload residuals CSV", type=["csv"])
 
 # Optional: let the user choose the download file name
-download_name = st.text_input("Download filename (no extension)", "result1")
+download_name = "Residuals" + datetime.today().strftime('%Y-%m-%d')
 
 if uploaded is not None:
     # Use utf-8-sig to gracefully handle BOM if your input CSV has one
-    csv_text = uploaded.getvalue().decode("utf-8-sig", errors="replace")
+    uploaded_bytes = uploaded.getvalue()  # from st.file_uploader
 
     if st.button("Run"):
-        output_bytes = main(date_str, csv_text)
+        output_bytes = main(date_string, uploaded_bytes)
 
         st.download_button(
             label="Download modified CSV",
