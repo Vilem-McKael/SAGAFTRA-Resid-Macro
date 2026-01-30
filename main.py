@@ -1,132 +1,105 @@
 import streamlit as st
 import csv
 from io import StringIO
-from typing import Dict, List, Optional
 
 
-def money_to_float(x: str) -> float:
-    """Convert things like '$1,234.56' or '($12.00)' to float."""
-    if x is None:
-        return 0.0
-    s = str(x).strip()
-    if not s:
-        return 0.0
+def main(date_str: str, csv_text: str) -> bytes:
+    # This preserves your original behavior:
+    # - count = number of rows in the CSV
+    # - loop with "line_num" starting at 1
+    # - skip first row (header) when line_num == 1
+    # - set is_finished when line_num == count (i.e., on last row)
+    # - same logic for when to write group rows and summary rows
+    #
+    # Only difference: we write to an in-memory buffer instead of a file on disk.
 
-    negative = False
-    if s.startswith("(") and s.endswith(")"):
-        negative = True
-        s = s[1:-1]
+    # Parse all rows once so we can get count exactly like your code intended
+    reader_for_count = csv.reader(StringIO(csv_text))
+    rows = list(reader_for_count)
+    count = len(rows)
 
-    s = s.replace("$", "").replace(",", "").strip()
-    try:
-        val = float(s)
-    except ValueError:
-        val = 0.0
+    # Now iterate like your second pass
+    reader_rows = rows  # reuse
 
-    return -val if negative else val
+    out = StringIO()
 
+    # Preserve your exact header output style
+    out.write("\ufeff")  # BOM
+    out.write(f"{date_str}, '', '', ''\n")
+    out.write("'Company', 'Gross', 'Net', 'Corp'")  # NOTE: no newline in your original
 
-def transform_csv(date_str: str, input_csv_text: str) -> bytes:
-    """
-    Takes input CSV text, returns output CSV bytes (utf-8 with BOM) for download.
-    """
-    # Read input rows
-    reader = csv.reader(StringIO(input_csv_text))
-    rows = list(reader)
-
-    if not rows:
-        # Empty file
-        out = "\ufeff" + f"{date_str},,,\n" + "Company,Gross,Net,Corp\n"
-        return out.encode("utf-8")
-
-    # Skip header row (your original code skipped line 1)
-    data_rows = rows[1:] if len(rows) > 1 else []
-
-    # Prepare output in memory
-    out_buf = StringIO()
-    out_buf.write("\ufeff")  # Excel-friendly BOM
-    writer = csv.writer(out_buf, lineterminator="\n")
-
-    writer.writerow([date_str, "", "", ""])
-    writer.writerow(["Company", "Gross", "Net", "Corp"])
-
-    current_check_no: Optional[str] = None
+    # iteration vars
+    current_check_no = False
     current_company = ""
-    current_corp = ""
     sum_gross = 0.0
     sum_net = 0.0
+    current_corp = ""
 
-    net_totals: Dict[str, float] = {}
+    # summary vars
+    is_finished = False
+    net_totals = {}
 
-    def flush_group():
-        nonlocal sum_gross, sum_net, current_company, current_corp
-        if current_check_no is None:
-            return
-        writer.writerow([current_company, f"{sum_gross:.2f}", f"{sum_net:.2f}", current_corp])
-        net_totals[current_corp] = net_totals.get(current_corp, 0.0) + sum_net
-
-    for row in data_rows:
-        if not row:
+    # processing
+    for line_num, row in enumerate(reader_rows, start=1):
+        # mimic: if reader.line_num == 1: continue
+        if line_num == 1:
             continue
 
-        # Defensive: make sure indexes exist
-        # You use row[0], row[1], row[3], row[10], row[11]
-        if len(row) <= 11:
+        # mimic: if reader.line_num == count: is_finished = True
+        if line_num == count:
+            is_finished = True
+
+        # Guard against short/blank rows (prevents index errors)
+        if not row or len(row) <= 11:
             continue
 
-        check_no = row[0].strip()
-
-        gross = money_to_float(row[10])
-        net = money_to_float(row[11])
-
-        if current_check_no is None:
-            # first group
-            current_check_no = check_no
-            current_corp = row[1].strip()
-            current_company = row[3].strip()
-            sum_gross = gross
-            sum_net = net
-            continue
+        check_no = row[0]
 
         if check_no == current_check_no:
-            sum_gross += gross
-            sum_net += net
+            sum_gross += float(row[10].replace("$", ""))
+            sum_net += float(row[11].replace("$", ""))
         else:
-            # new check_no => write previous group, start new group
-            flush_group()
+            if current_check_no:
+                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
+                net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
+
             current_check_no = check_no
-            current_corp = row[1].strip()
-            current_company = row[3].strip()
-            sum_gross = gross
-            sum_net = net
+            current_corp = row[1]
+            current_company = row[3]
+            sum_gross = float(row[10].replace("$", ""))
+            sum_net = float(row[11].replace("$", ""))
 
-    # Flush last group
-    flush_group()
+            if is_finished:
+                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
+                net_totals[current_corp] = net_totals.get(current_corp, 0) + float(sum_net)
 
-    # Summary rows (your original wrote: '', '', {v}, {k}
-    for corp, total_net in net_totals.items():
-        writer.writerow(["", "", f"{total_net:.2f}", corp])
+        if is_finished:
+            for k, v in net_totals.items():
+                out.write(f"'', '', {v}, {k}\n")
 
-    return out_buf.getvalue().encode("utf-8")
+    return out.getvalue().encode("utf-8")
 
 
 # ---------------- Streamlit UI ----------------
 
-st.title("CSV Macro")
+st.title("SAG-AFTRA Residual Macro")
 
-date_str = st.text_input("Date", "Jul 10 2025")
+date_str = st.text_input("Date (first line)", "Jul 10 2025")
 uploaded = st.file_uploader("Upload residuals CSV", type=["csv"])
 
+# Optional: let the user choose the download file name
+download_name = st.text_input("Download filename (no extension)", "result1")
+
 if uploaded is not None:
-    # Read bytes -> text
-    input_text = uploaded.getvalue().decode("utf-8-sig", errors="replace")
+    # Use utf-8-sig to gracefully handle BOM if your input CSV has one
+    csv_text = uploaded.getvalue().decode("utf-8-sig", errors="replace")
 
     if st.button("Run"):
-        output_bytes = transform_csv(date_str, input_text)
+        output_bytes = main(date_str, csv_text)
 
         st.download_button(
-            label="Download result CSV",
+            label="Download modified CSV",
             data=output_bytes,
-            file_name="result.csv",
+            file_name=f"{download_name}.csv",
             mime="text/csv",
         )
