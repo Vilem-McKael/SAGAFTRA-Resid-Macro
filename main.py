@@ -7,13 +7,10 @@ from datetime import datetime
 def main(date_str: str, csv_text: bytes) -> bytes:
     f = StringIO(uploaded_bytes.decode("utf-8-sig"), newline="")
 
-    reader_for_count = csv.reader(csv_text)
-    rows = list(reader_for_count)
+    count_reader = csv.reader(f)
+    count = sum(1 for row in count_reader)
     f.seek(0)
-    count = len(rows)
-
-    # Now iterate like your second pass
-    reader_rows = rows  # reuse
+    reader = csv.reader(f)
 
     out = StringIO()
 
@@ -34,25 +31,25 @@ def main(date_str: str, csv_text: bytes) -> bytes:
     net_totals = {}
 
     # processing
-    for line_num, row in enumerate(reader_rows, start=1):
-        # mimic: if reader.line_num == 1: continue
-        if line_num == 1:
+    for row in reader:
+        print(reader.line_num)
+
+        if reader.line_num == 1:
+            print('here')
             continue
 
-        # mimic: if reader.line_num == count: is_finished = True
-        if line_num == count:
+        if reader.line_num == count:
             is_finished = True
 
-        # Guard against short/blank rows (prevents index errors)
-        if not row or len(row) <= 11:
-            continue
-
+        print(row[0])
         check_no = row[0]
 
         if check_no == current_check_no:
-            sum_gross += float(row[10].replace("$", ""))
-            sum_net += float(row[11].replace("$", ""))
+            print('adding sums')
+            sum_gross += float(row[10].replace('$', ''))
+            sum_net += float(row[11].replace('$', ''))
         else:
+            print('new check')
             if current_check_no:
                 out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
                 net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
@@ -60,8 +57,9 @@ def main(date_str: str, csv_text: bytes) -> bytes:
             current_check_no = check_no
             current_corp = row[1]
             current_company = row[3]
-            sum_gross = float(row[10].replace("$", ""))
-            sum_net = float(row[11].replace("$", ""))
+            print('gross: ', row[10], 'net: ', row[11])
+            sum_gross = float(row[10].replace('$', ''))
+            sum_net = float(row[11].replace('$', ''))
 
             if is_finished:
                 out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
@@ -71,8 +69,15 @@ def main(date_str: str, csv_text: bytes) -> bytes:
             for k, v in net_totals.items():
                 out.write(f"'', '', {v}, {k}\n")
 
-    return out.getvalue().encode("utf-8")
+            # if i == count:
+            #     new_file.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
+            #     net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
+            #
+            #     new_file.write
 
+        print(row)
+        
+    return out.getvalue().encode("utf-8")
 
 # ---------------- Streamlit UI ----------------
 
