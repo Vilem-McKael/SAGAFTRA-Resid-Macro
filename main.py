@@ -1,24 +1,25 @@
 import streamlit as st
 import csv
+import io
 from io import StringIO
 from datetime import datetime
 
 
-def main(date_str: str, csv_text: bytes) -> bytes:
-    f = StringIO(csv_text.decode("utf-8-sig"), newline="")
+def main(date_str: str, upload_bytes: bytes) -> bytes:
+    f = io.TextIOWrapper(io.BytesIO(upload_bytes), encoding="utf-8-sig", newline="")
+
 
     count_reader = csv.reader(f)
     count = sum(1 for row in count_reader)
     f.seek(0)
     reader = csv.reader(f)
 
-    out = StringIO()
-    writer = csv.writer(out)  # Create a CSV writer
+    out_bytes = io.BytesIO()
+    out = io.TextIOWrapper(out_bytes, encoding="utf-8", newline="")
 
-    # Write BOM manually, then use writer for CSV rows
-    out.write("\ufeff")
-    writer.writerow([date_str, '', '', ''])
-    writer.writerow(['Company', 'Gross', 'Net', 'Corp'])
+
+    out.write(f"\ufeff{date_str}, '', '', ''\n")
+    out.write("'Company', 'Gross', 'Net', 'Corp'")
 
     # iteration vars
     current_check_no = False
@@ -28,6 +29,7 @@ def main(date_str: str, csv_text: bytes) -> bytes:
     current_corp = ""
 
     # summary vars
+    is_finished = False
     net_totals = {}
 
     # processing
@@ -37,6 +39,9 @@ def main(date_str: str, csv_text: bytes) -> bytes:
         if reader.line_num == 1:
             print('here')
             continue
+
+        if reader.line_num == count:
+            is_finished = True
 
         print(row[0])
         check_no = row[0]
@@ -48,7 +53,7 @@ def main(date_str: str, csv_text: bytes) -> bytes:
         else:
             print('new check')
             if current_check_no:
-                writer.writerow([current_company, sum_gross, sum_net, current_corp])
+                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
                 net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
 
             current_check_no = check_no
@@ -58,18 +63,21 @@ def main(date_str: str, csv_text: bytes) -> bytes:
             sum_gross = float(row[10].replace('$', ''))
             sum_net = float(row[11].replace('$', ''))
 
+            if is_finished:
+                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
+                net_totals[current_corp] = net_totals.get(current_corp, 0) + float(sum_net)
+
         print(row)
 
     # Write the last check's data
-    if current_check_no:
-        writer.writerow([current_company, sum_gross, sum_net, current_corp])
-        net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
+    if is_finished:
+        for k, v in net_totals.items():
+            out.write(f"'', '', {v}, {k}\n")
 
     # Write summary totals
-    for k, v in net_totals.items():
-        writer.writerow(['', '', v, k])
 
-    return out.getvalue().encode("utf-8")
+    out.flush()
+    return out_bytes.getvalue()
 
 # ---------------- Streamlit UI ----------------
 
