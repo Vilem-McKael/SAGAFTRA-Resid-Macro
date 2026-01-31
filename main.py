@@ -13,20 +13,21 @@ def main(date_str: str, csv_text: bytes) -> bytes:
     reader = csv.reader(f)
 
     out = StringIO()
+    writer = csv.writer(out)  # Create a CSV writer
 
-    # Preserve your exact header output style
-    out.write(f"\ufeff{date_str}, '', '', ''\n")
-    out.write("'Company', 'Gross', 'Net', 'Corp'")  # NOTE: no newline in your original
+    # Write BOM manually, then use writer for CSV rows
+    out.write("\ufeff")
+    writer.writerow([date_str, '', '', ''])
+    writer.writerow(['Company', 'Gross', 'Net', 'Corp'])
 
     # iteration vars
     current_check_no = False
     current_company = ""
-    sum_gross = 0
-    sum_net = 0
+    sum_gross = 0.0
+    sum_net = 0.0
     current_corp = ""
 
     # summary vars
-    is_finished = False
     net_totals = {}
 
     # processing
@@ -36,9 +37,6 @@ def main(date_str: str, csv_text: bytes) -> bytes:
         if reader.line_num == 1:
             print('here')
             continue
-
-        if reader.line_num == count:
-            is_finished = True
 
         print(row[0])
         check_no = row[0]
@@ -50,7 +48,7 @@ def main(date_str: str, csv_text: bytes) -> bytes:
         else:
             print('new check')
             if current_check_no:
-                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
+                writer.writerow([current_company, sum_gross, sum_net, current_corp])
                 net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
 
             current_check_no = check_no
@@ -60,21 +58,16 @@ def main(date_str: str, csv_text: bytes) -> bytes:
             sum_gross = float(row[10].replace('$', ''))
             sum_net = float(row[11].replace('$', ''))
 
-            if is_finished:
-                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                net_totals[current_corp] = net_totals.get(current_corp, 0) + float(sum_net)
-
-        if is_finished:
-            for k, v in net_totals.items():
-                out.write(f"'', '', {v}, {k}\n")
-
-            # if i == count:
-            #     new_file.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-            #     net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
-            #
-            #     new_file.write
-
         print(row)
+
+    # Write the last check's data
+    if current_check_no:
+        writer.writerow([current_company, sum_gross, sum_net, current_corp])
+        net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
+
+    # Write summary totals
+    for k, v in net_totals.items():
+        writer.writerow(['', '', v, k])
 
     return out.getvalue().encode("utf-8")
 
