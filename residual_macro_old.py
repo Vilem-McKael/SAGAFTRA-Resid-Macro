@@ -64,4 +64,4 @@ def macro(date, residual_data_filepath, new_filename):
         for k, v in net_totals.items():
             new_file.write(f',,"${format(round(v, 2), ',')}", {k}\n')
 
-macro('Jan 27 2026', 'data/residuals1-27-26.csv', '1-27-26 Residuals.csv')
+macro('Jan 27 2026', 'data/residuals1-30-26.csv', '1-30-26 Residuals2.csv')

@@ -1,13 +1,10 @@
-import streamlit as st
 import csv
+import streamlit as st
 import io
-from io import StringIO
 from datetime import datetime
 
-
-def main(date_str: str, upload_bytes: bytes) -> bytes:
-    f = io.TextIOWrapper(io.BytesIO(upload_bytes), encoding="utf-8-sig", newline="")
-
+def main(date_str: str, upload_bytes: bytes):
+    f = io.TextIOWrapper(io.BytesIO(upload_bytes), encoding="utf-8", newline="")
 
     count_reader = csv.reader(f)
     count = sum(1 for row in count_reader)
@@ -17,19 +14,18 @@ def main(date_str: str, upload_bytes: bytes) -> bytes:
     out_bytes = io.BytesIO()
     out = io.TextIOWrapper(out_bytes, encoding="utf-8", newline="")
 
+    out.write(f'\ufeff"{date_str}",,,\n')
+    out.write("Company,Gross,Net,Corp\n")
 
-    out.write(f"\ufeff{date_str}, '', '', ''\n")
-    out.write("'Company', 'Gross', 'Net', 'Corp'")
-
-    # iteration vars
-    current_check_no = False
-    current_company = ""
-    sum_gross = 0.0
-    sum_net = 0.0
-    current_corp = ""
+    # corp changer dict
+    corp_name_changer_dict = {
+        "E M L PRODS": "EML",
+        "LEHBOD INC": "LBI",
+        "Edie Lehmann Boddicker": "LehBod"
+    }
 
     # summary vars
-    is_finished = False
+    processed_check_identifiers = []
     net_totals = {}
 
     # processing
@@ -41,45 +37,39 @@ def main(date_str: str, upload_bytes: bytes) -> bytes:
             continue
 
         if reader.line_num == count:
+            print("finished: line_num:", reader.line_num, " count: ", count)
             is_finished = True
 
-        print(row[0])
-        check_no = row[0]
+        print(row[8])
+        check_no = row[8]
+        current_company = row[3]
+        unique_check_identifier = f"{check_no}-{current_company}"
 
-        if check_no == current_check_no:
-            print('adding sums')
-            sum_gross += float(row[10].replace('$', ''))
-            sum_net += float(row[11].replace('$', ''))
+        if unique_check_identifier in processed_check_identifiers:
+            print('check already processed, continuing')
+            continue
         else:
             print('new check')
-            if current_check_no:
-                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                net_totals[current_corp] = net_totals.get(current_corp, 0) + sum_net
 
-            current_check_no = check_no
-            current_corp = row[1]
-            current_company = row[3]
+            processed_check_identifiers.append(unique_check_identifier)
+            current_corp = corp_name_changer_dict[row[1]]
+
+
             print('gross: ', row[10], 'net: ', row[11])
-            sum_gross = float(row[10].replace('$', ''))
-            sum_net = float(row[11].replace('$', ''))
+            current_gross = float(row[10].replace('$', ''))
+            current_net = float(row[11].replace('$', ''))
 
-            if is_finished:
-                out.write(f"{current_company}, {sum_gross}, {sum_net}, {current_corp}\n")
-                net_totals[current_corp] = net_totals.get(current_corp, 0) + float(sum_net)
+
+            out.write(f'"{current_company}","${current_gross:,.2f}","${current_net:,.2f}","{current_corp}"\n')
+            net_totals[current_corp] = net_totals.get(current_corp, 0) + current_net
 
         print(row)
 
-    # Write the last check's data
-    if is_finished:
-        for k, v in net_totals.items():
-            out.write(f"'', '', {v}, {k}\n")
-
-    # Write summary totals
+    for k, v in net_totals.items():
+        out.write(f',,"${format(round(v, 2), ',')}", {k}\n')
 
     out.flush()
     return out_bytes.getvalue()
-
-# ---------------- Streamlit UI ----------------
 
 st.title("SAG-AFTRA Residual Macro")
 

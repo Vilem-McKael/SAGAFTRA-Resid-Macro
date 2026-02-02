@@ -75,7 +75,7 @@ def main(date, residual_data_filepath, new_filename):
 
 
 
-main('Jul 10 2025', 'data/residuals.csv', 'result1.csv')
+main('Jul 10 2025', 'data/residuals1-30-26.csv', 'result3')
 # Current CSV Format:
 # ['SAG-AFTRA ID', 'Payee Name', 'Payee Type', 'Company', 'Payroll House', 'Production/Episode Title', 'Check Status', 'Check Status Date', 'Check #', 'Check Date', 'Gross Amount', 'Net Amount', 'Received Date', 'Donated', 'Prod Title Gross Amt']
 # ['10043657', 'E M L PRODS', 'ORGANIZATION', 'Nickelodeon', 'GEP Talent Services, LLC - SDDD (1494)', 'Rugrats / Rugrats Chanukah, A', 'Queued for Post', '7/1/25', '60565650', '6/16/25', '$17.13', '$17.13', '6/17/25', 'No', '$0.35']
